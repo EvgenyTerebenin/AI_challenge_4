@@ -1,11 +1,13 @@
 package com.heygude.aichallenge.data.constants
 
+import com.heygude.aichallenge.BuildConfig
+
 object Secrets {
-    // TODO: Replace with your actual API key from local.properties or environment variables
-    // For local development, add these to local.properties:
-    // yandex.api.key=YOUR_API_KEY_HERE
-    // yandex.folder.id=YOUR_FOLDER_ID_HERE
-    const val YANDEX_API_KEY = "YOUR_YANDEX_API_KEY_HERE"
-    const val YANDEX_FOLDER_ID = "YOUR_YANDEX_FOLDER_ID_HERE"
+    // Read from BuildConfig, which is populated from local.properties
+    // Add to local.properties (not committed):
+    // yandex.api.key=YOUR_REAL_API_KEY
+    // yandex.folder.id=YOUR_REAL_FOLDER_ID
+    val YANDEX_API_KEY: String = BuildConfig.YANDEX_API_KEY
+    val YANDEX_FOLDER_ID: String = BuildConfig.YANDEX_FOLDER_ID
 }
 
