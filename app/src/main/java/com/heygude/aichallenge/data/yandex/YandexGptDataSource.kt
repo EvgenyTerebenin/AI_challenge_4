@@ -17,6 +17,7 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import retrofit2.Retrofit
 import retrofit2.HttpException
 import java.util.concurrent.TimeUnit
+import java.time.Instant
 
 /**
  * Data source responsible for invoking Yandex GPT API.
@@ -69,6 +70,40 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
         }
         return@withContext try {
+            val timestamp = Instant.now().toString()
+            val systemPrompt = """Ты — умный и полезный AI-агент. ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
+Не используй Markdown совершенно. Не оборачивай ответ в тройные обратные кавычки ``` ни в начале, ни в конце. Отвечай чистой строкой без какого-либо форматирования.
+
+{
+  \"status\": \"success\",
+  \"data\": { 
+    \"text\": \"Основной текст ответа от модели\",
+    \"metadata\": {
+      \"model\": \"yandexgpt\",
+      \"timestamp\": \"$timestamp\",
+      \"tokens_used\": количество использованных токенов
+    }
+  },
+  \"error\": null
+}
+
+Или в случае ошибки:
+
+{
+  \"status\": \"error\",
+  \"data\": null,
+  \"error\": {
+    \"code\": \"код ошибки\",
+    \"message\": \"Описание ошибки\",
+    \"details\": {
+      \"retry_after\": 60
+    }
+  }
+}
+
+ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
+ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
+
             val request = YandexCompletionRequest(
                 modelUri = "gpt://${Secrets.YANDEX_FOLDER_ID}/yandexgpt",
                 completionOptions = CompletionOptions(
@@ -77,13 +112,14 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
                     maxTokens = 2000
                 ),
                 messages = listOf(
-                    Message(role = "system", text = "You are a helpful assistant."),
+                    Message(role = "system", text = systemPrompt),
                     Message(role = "user", text = prompt)
                 )
             )
             val response = api.completion(request)
-            val text = response.result?.alternatives?.firstOrNull()?.message?.text ?: ""
-            Result.success(text)
+            val raw = response.result?.alternatives?.firstOrNull()?.message?.text ?: ""
+            val cleaned = stripCodeFences(raw)
+            Result.success(cleaned)
         } catch (t: Throwable) {
             if (t is HttpException) {
                 val raw = t.response()?.errorBody()?.string()
@@ -97,6 +133,21 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             }
         }
     }
+}
+
+private fun stripCodeFences(input: String): String {
+    val trimmed = input.trim()
+    // Handle fenced blocks with optional language label. DOTALL via (?s)
+    val fencedRegex = Regex("""(?s)^\s*```[a-zA-Z0-9_\-]*\s*\n(.*?)\s*\n?```\s*$""")
+    val match = fencedRegex.find(trimmed)
+    if (match != null && match.groupValues.size > 1) {
+        return match.groupValues[1].trim()
+    }
+    // Simple case: entire string starts and ends with ``` on one line
+    if (trimmed.startsWith("```") && trimmed.endsWith("```") && trimmed.length >= 6) {
+        return trimmed.removePrefix("```").removeSuffix("```").trim()
+    }
+    return trimmed
 }
 
 

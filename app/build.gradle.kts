@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,6 +19,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Inject secrets from local.properties into BuildConfig
+        val localProps = Properties().apply {
+            val propsFile = rootProject.file("local.properties")
+            if (propsFile.exists()) {
+                propsFile.inputStream().use { this.load(it) }
+            }
+        }
+        val yandexApiKey = (localProps.getProperty("yandex.api.key") ?: "YOUR_YANDEX_API_KEY_HERE")
+        val yandexFolderId = (localProps.getProperty("yandex.folder.id") ?: "YOUR_YANDEX_FOLDER_ID_HERE")
+        buildConfigField("String", "YANDEX_API_KEY", "\"$yandexApiKey\"")
+        buildConfigField("String", "YANDEX_FOLDER_ID", "\"$yandexFolderId\"")
     }
 
     buildTypes {
@@ -37,6 +50,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
