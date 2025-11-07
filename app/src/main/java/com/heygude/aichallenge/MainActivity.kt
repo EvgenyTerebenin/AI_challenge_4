@@ -42,16 +42,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.heygude.aichallenge.ui.theme.AIChallengeTheme
 
 @Serializable
@@ -98,8 +105,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AIChallengeTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    AIAgentScreen(modifier = Modifier.padding(innerPadding))
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = "main"
+                ) {
+                    composable("main") {
+                        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                            AIAgentScreen(
+                                modifier = Modifier.padding(innerPadding),
+                                onSettingsClick = { navController.navigate("settings") }
+                            )
+                        }
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            onBackClick = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
@@ -108,7 +131,21 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AIAgentScreen(modifier: Modifier = Modifier, vm: AIAgentViewModel = viewModel()) {
+fun AIAgentScreen(
+    modifier: Modifier = Modifier,
+    vm: AIAgentViewModel = run {
+        val application = LocalContext.current.applicationContext as android.app.Application
+        viewModel(
+            factory = object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                    return AIAgentViewModel(application) as T
+                }
+            }
+        )
+    },
+    onSettingsClick: () -> Unit = {}
+) {
     val uiState by vm.uiState.collectAsState()
     var prompt by remember { mutableStateOf("") }
     var showJsonMessages by remember { mutableStateOf(false) }
@@ -274,18 +311,30 @@ fun AIAgentScreen(modifier: Modifier = Modifier, vm: AIAgentViewModel = viewMode
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Checkbox(
-                checked = showJsonMessages,
-                onCheckedChange = { showJsonMessages = it }
-            )
-            Text(
-                text = "Show messages in JSON",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = showJsonMessages,
+                    onCheckedChange = { showJsonMessages = it }
+                )
+                Text(
+                    text = "Show messages in JSON",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }

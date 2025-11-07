@@ -6,7 +6,9 @@ import com.heygude.aichallenge.data.yandex.YandexGptDataSource
  * Repository abstraction to support multiple GPT providers.
  * It currently mirrors the Yandex contract for simplicity.
  */
-interface AIAgentRepository : YandexGptDataSource
+interface AIAgentRepository {
+    suspend fun generateResponse(prompt: String, systemPrompt: String): Result<String>
+}
 
 /**
  * Default implementation that delegates to a concrete data source
@@ -15,8 +17,8 @@ interface AIAgentRepository : YandexGptDataSource
 class DefaultAIAgentRepository(
     private val dataSource: YandexGptDataSource
 ) : AIAgentRepository {
-    override suspend fun generateResponse(prompt: String): Result<String> =
-        dataSource.generateResponse(prompt)
+    override suspend fun generateResponse(prompt: String, systemPrompt: String): Result<String> =
+        dataSource.generateResponse(prompt, systemPrompt)
 }
 
 

@@ -1,18 +1,23 @@
 package com.heygude.aichallenge
 
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.app.Application
 import com.heygude.aichallenge.data.AIAgentRepository
 import com.heygude.aichallenge.data.DefaultAIAgentRepository
 import com.heygude.aichallenge.data.yandex.DefaultYandexGptDataSource
+import com.heygude.aichallenge.presentation.SystemPromptManager
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 class AIAgentViewModel(
-    private val repository: AIAgentRepository = DefaultAIAgentRepository(DefaultYandexGptDataSource())
-) : ViewModel() {
+    application: Application,
+    private val repository: AIAgentRepository = DefaultAIAgentRepository(DefaultYandexGptDataSource()),
+    private val systemPromptManager: SystemPromptManager = SystemPromptManager(application)
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
     val uiState: StateFlow<UiState> = _uiState
@@ -27,6 +32,12 @@ class AIAgentViewModel(
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            systemPromptManager.initializeDefaultPrompt()
+        }
+    }
+
     fun sendPrompt(prompt: String) {
         if (prompt.isBlank()) return
         val now = System.currentTimeMillis()
@@ -39,7 +50,9 @@ class AIAgentViewModel(
         _messages.value = _messages.value + userMessage
         _uiState.value = UiState.Loading
         viewModelScope.launch {
-            val result = repository.generateResponse(prompt)
+            val currentPrompt = systemPromptManager.currentPrompt.firstOrNull()
+            val systemPrompt = currentPrompt?.content ?: ""
+            val result = repository.generateResponse(prompt, systemPrompt)
             _uiState.value = result.fold(
                 onSuccess = { text ->
                     val reply = ChatMessage(
