@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -59,7 +60,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.NavHostController
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -159,6 +164,7 @@ fun AIAgentScreen(
     val listState = rememberLazyListState()
     val selectedModel by vm.selectedModel.collectAsState()
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     // Auto-scroll to top (index 0) when new messages arrive
     LaunchedEffect(messages.size) {
@@ -189,12 +195,22 @@ fun AIAgentScreen(
                     // Show full text/JSON for user messages or when checkbox is enabled
                     message.text
                 }
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 4.dp),
-                    horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                    horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
                 ) {
+                    // Title
+                    Text(
+                        text = if (isUser) "User" else (message.model?.displayName ?: "AI"),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .fillMaxWidth(0.75f)
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Message bubble
                     Surface(
                         shape = if (isUser) {
                             RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
@@ -206,7 +222,18 @@ fun AIAgentScreen(
                         } else {
                             MaterialTheme.colorScheme.tertiaryContainer
                         },
-                        modifier = Modifier.fillMaxWidth(0.75f),
+                        modifier = Modifier
+                            .fillMaxWidth(0.75f)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onLongPress = {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("Message", displayText)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, "Text copied to clipboard", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
                         tonalElevation = 1.dp
                     ) {
                         Text(
@@ -262,14 +289,16 @@ fun AIAgentScreen(
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp, max = 200.dp),
                     placeholder = { 
                         Text(
                             "Message",
                             style = MaterialTheme.typography.bodyLarge
                         ) 
                     },
-                    singleLine = true,
+                    maxLines = 5,
                     shape = RoundedCornerShape(28.dp),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -279,7 +308,8 @@ fun AIAgentScreen(
                         disabledIndicatorColor = Color.Transparent
                     ),
                     textStyle = MaterialTheme.typography.bodyLarge,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                    singleLine = false,
                     keyboardActions = KeyboardActions(
                         onSend = {
                             if (prompt.isNotBlank()) {

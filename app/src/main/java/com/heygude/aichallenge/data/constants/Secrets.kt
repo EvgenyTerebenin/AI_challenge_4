@@ -7,7 +7,9 @@ object Secrets {
     // Add to local.properties (not committed):
     // yandex.api.key=YOUR_REAL_API_KEY
     // yandex.folder.id=YOUR_REAL_FOLDER_ID
+    // deepseek.api.key=YOUR_REAL_DEEPSEEK_API_KEY
     val YANDEX_API_KEY: String = BuildConfig.YANDEX_API_KEY
     val YANDEX_FOLDER_ID: String = BuildConfig.YANDEX_FOLDER_ID
+    val DEEPSEEK_API_KEY: String = BuildConfig.DEEPSEEK_API_KEY
 }
 

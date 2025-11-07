@@ -28,8 +28,10 @@ android {
         }
         val yandexApiKey = (localProps.getProperty("yandex.api.key") ?: "YOUR_YANDEX_API_KEY_HERE")
         val yandexFolderId = (localProps.getProperty("yandex.folder.id") ?: "YOUR_YANDEX_FOLDER_ID_HERE")
+        val deepseekApiKey = (localProps.getProperty("deepseek.api.key") ?: "YOUR_DEEPSEEK_API_KEY_HERE")
         buildConfigField("String", "YANDEX_API_KEY", "\"$yandexApiKey\"")
         buildConfigField("String", "YANDEX_FOLDER_ID", "\"$yandexFolderId\"")
+        buildConfigField("String", "DEEPSEEK_API_KEY", "\"$deepseekApiKey\"")
     }
 
     buildTypes {

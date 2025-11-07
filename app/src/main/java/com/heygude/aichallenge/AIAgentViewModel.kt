@@ -7,6 +7,7 @@ import com.heygude.aichallenge.data.AIAgentRepository
 import com.heygude.aichallenge.data.DefaultAIAgentRepository
 import com.heygude.aichallenge.data.yandex.DefaultYandexGptDataSource
 import com.heygude.aichallenge.data.yandex.GptModel
+import com.heygude.aichallenge.data.deepseek.DefaultDeepSeekGptDataSource
 import com.heygude.aichallenge.presentation.SystemPromptManager
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,10 @@ import kotlinx.coroutines.launch
 
 class AIAgentViewModel(
     application: Application,
-    private val repository: AIAgentRepository = DefaultAIAgentRepository(DefaultYandexGptDataSource()),
+    private val repository: AIAgentRepository = DefaultAIAgentRepository(
+        DefaultYandexGptDataSource(),
+        DefaultDeepSeekGptDataSource()
+    ),
     private val systemPromptManager: SystemPromptManager = SystemPromptManager(application)
 ) : AndroidViewModel(application) {
 
@@ -27,13 +31,14 @@ class AIAgentViewModel(
         val id: Long,
         val text: String,
         val isUser: Boolean,
-        val timestampMs: Long
+        val timestampMs: Long,
+        val model: GptModel? = null // Model used for AI responses, null for user messages
     )
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    private val _selectedModel = MutableStateFlow<GptModel>(GptModel.LATEST)
+    private val _selectedModel = MutableStateFlow<GptModel>(GptModel.YANDEX_LATEST)
     val selectedModel: StateFlow<GptModel> = _selectedModel.asStateFlow()
 
     fun setSelectedModel(model: GptModel) {
@@ -60,14 +65,16 @@ class AIAgentViewModel(
         viewModelScope.launch {
             val currentPrompt = systemPromptManager.currentPrompt.firstOrNull()
             val systemPrompt = currentPrompt?.content ?: ""
-            val result = repository.generateResponse(prompt, systemPrompt, _selectedModel.value)
+            val selectedModel = _selectedModel.value
+            val result = repository.generateResponse(prompt, systemPrompt, selectedModel)
             _uiState.value = result.fold(
                 onSuccess = { text ->
                     val reply = ChatMessage(
                         id = System.currentTimeMillis(),
                         text = text,
                         isUser = false,
-                        timestampMs = System.currentTimeMillis()
+                        timestampMs = System.currentTimeMillis(),
+                        model = selectedModel
                     )
                     _messages.value = _messages.value + reply
                     UiState.Success(text)
@@ -77,7 +84,8 @@ class AIAgentViewModel(
                         id = System.currentTimeMillis(),
                         text = "Error: ${error.message ?: "Unknown error"}",
                         isUser = false,
-                        timestampMs = System.currentTimeMillis()
+                        timestampMs = System.currentTimeMillis(),
+                        model = selectedModel
                     )
                     _messages.value = _messages.value + reply
                     UiState.Error(error.message ?: "Unknown error")

@@ -1,11 +1,10 @@
-package com.heygude.aichallenge.data.yandex
+package com.heygude.aichallenge.data.deepseek
 
 import com.heygude.aichallenge.data.constants.Secrets
-import com.heygude.aichallenge.data.yandex.api.CompletionOptions
-import com.heygude.aichallenge.data.yandex.api.Message
-import com.heygude.aichallenge.data.yandex.api.YandexCompletionRequest
-import com.heygude.aichallenge.data.yandex.api.YandexGptApi
-import com.heygude.aichallenge.data.yandex.api.ApiError
+import com.heygude.aichallenge.data.deepseek.api.DeepSeekChatRequest
+import com.heygude.aichallenge.data.deepseek.api.DeepSeekGptApi
+import com.heygude.aichallenge.data.deepseek.api.DeepSeekMessage
+import com.heygude.aichallenge.data.yandex.GptModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
@@ -20,27 +19,17 @@ import java.util.concurrent.TimeUnit
 import java.time.Instant
 
 /**
- * Data source responsible for invoking Yandex GPT API.
- * Later this will be implemented with Retrofit.
+ * Data source responsible for invoking DeepSeek GPT API.
  */
-interface YandexGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST): Result<String>
+interface DeepSeekGptDataSource {
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel): Result<String>
 }
 
-class DefaultYandexGptDataSource : YandexGptDataSource {
-    private val baseUrl = "https://llm.api.cloud.yandex.net/"
+class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
+    private val baseUrl = "https://api.deepseek.com/v1/"
     private val json: Json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
-    }
-
-    private val authInterceptor = Interceptor { chain ->
-        val request = chain.request()
-            .newBuilder()
-            .addHeader("Authorization", "Api-Key ${Secrets.YANDEX_API_KEY}")
-            .addHeader("x-folder-id", Secrets.YANDEX_FOLDER_ID)
-            .build()
-        chain.proceed(request)
     }
 
     private val client: OkHttpClient by lazy {
@@ -48,7 +37,6 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             level = HttpLoggingInterceptor.Level.BODY
         }
         OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -56,13 +44,13 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             .build()
     }
 
-    private val api: YandexGptApi by lazy {
+    private val api: DeepSeekGptApi by lazy {
         Retrofit.Builder()
             .baseUrl(baseUrl)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .client(client)
             .build()
-            .create(YandexGptApi::class.java)
+            .create(DeepSeekGptApi::class.java)
     }
 
     override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel): Result<String> = withContext(Dispatchers.IO) {
@@ -73,7 +61,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             val timestamp = Instant.now().toString()
             val modelDisplayName = model.displayName
             val formattedSystemPrompt = """$systemPrompt
-                ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
+ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
 Не используй Markdown совершенно. Не оборачивай ответ в тройные обратные кавычки ``` ни в начале, ни в конце. Отвечай чистой строкой без какого-либо форматирования.
 
 {
@@ -106,29 +94,30 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
 ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
 ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
 
-            val request = YandexCompletionRequest(
-                modelUri = model.getModelUri(Secrets.YANDEX_FOLDER_ID),
-                completionOptions = CompletionOptions(
-                    stream = false,
-                    temperature = 0.6,
-                    maxTokens = 2000
-                ),
+            val request = DeepSeekChatRequest(
+                model = model.modelPath, // e.g., "deepseek-chat" or "deepseek-reasoner"
                 messages = listOf(
-                    Message(role = "system", text = formattedSystemPrompt),
-                    Message(role = "user", text = prompt)
-                )
+                    DeepSeekMessage(role = "system", content = formattedSystemPrompt),
+                    DeepSeekMessage(role = "user", content = prompt)
+                ),
+                temperature = 0.6,
+                max_tokens = 2000,
+                stream = false
             )
-            val response = api.completion(request)
-            val raw = response.result?.alternatives?.firstOrNull()?.message?.text ?: ""
+            val response = api.chatCompletion(
+                authorization = "Bearer ${Secrets.DEEPSEEK_API_KEY}",
+                body = request
+            )
+            val raw = response.choices?.firstOrNull()?.message?.content ?: ""
             val cleaned = stripCodeFences(raw)
             Result.success(cleaned)
         } catch (t: Throwable) {
             if (t is HttpException) {
                 val raw = t.response()?.errorBody()?.string()
                 val parsed = try {
-                    raw?.let { json.decodeFromString(ApiError.serializer(), it) }
+                    raw?.let { json.decodeFromString<com.heygude.aichallenge.data.deepseek.api.DeepSeekApiError>(it) }
                 } catch (_: Throwable) { null }
-                val message = parsed?.error?.message ?: parsed?.message ?: raw ?: t.message()
+                val message = parsed?.error?.message ?: raw ?: t.message() ?: "Unknown error"
                 Result.failure(IllegalStateException(message))
             } else {
                 Result.failure(t)
@@ -151,5 +140,4 @@ private fun stripCodeFences(input: String): String {
     }
     return trimmed
 }
-
 
