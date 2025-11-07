@@ -24,7 +24,7 @@ import java.time.Instant
  * Later this will be implemented with Retrofit.
  */
 interface YandexGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String): Result<String>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.LATEST): Result<String>
 }
 
 class DefaultYandexGptDataSource : YandexGptDataSource {
@@ -65,12 +65,13 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             .create(YandexGptApi::class.java)
     }
 
-    override suspend fun generateResponse(prompt: String, systemPrompt: String): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
         }
         return@withContext try {
             val timestamp = Instant.now().toString()
+            val modelDisplayName = model.displayName
             val formattedSystemPrompt = """$systemPrompt
                 ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
 Не используй Markdown совершенно. Не оборачивай ответ в тройные обратные кавычки ``` ни в начале, ни в конце. Отвечай чистой строкой без какого-либо форматирования.
@@ -80,7 +81,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
   \"data\": { 
     \"text\": \"Основной текст ответа от модели\",
     \"metadata\": {
-      \"model\": \"yandexgpt\",
+      \"model\": \"$modelDisplayName\",
       \"timestamp\": \"$timestamp\",
       \"tokens_used\": количество использованных токенов
     }
@@ -106,7 +107,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
 ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
 
             val request = YandexCompletionRequest(
-                modelUri = "gpt://${Secrets.YANDEX_FOLDER_ID}/yandexgpt",
+                modelUri = model.getModelUri(Secrets.YANDEX_FOLDER_ID),
                 completionOptions = CompletionOptions(
                     stream = false,
                     temperature = 0.6,

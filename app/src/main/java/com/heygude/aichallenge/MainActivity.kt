@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +51,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -60,6 +64,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.heygude.aichallenge.ui.theme.AIChallengeTheme
+import com.heygude.aichallenge.data.yandex.GptModel
 
 @Serializable
 private data class ApiResponse(
@@ -152,6 +157,8 @@ fun AIAgentScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val messages by vm.messages.collectAsState()
     val listState = rememberLazyListState()
+    val selectedModel by vm.selectedModel.collectAsState()
+    var expanded by remember { mutableStateOf(false) }
 
     // Auto-scroll to top (index 0) when new messages arrive
     LaunchedEffect(messages.size) {
@@ -303,6 +310,51 @@ fun AIAgentScreen(
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         }
                     )
+                }
+            }
+        }
+
+        // Model selection dropdown
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            tonalElevation = 1.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Model:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(end = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    TextButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = selectedModel.displayName,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        GptModel.entries.forEach { model ->
+                            DropdownMenuItem(
+                                text = { Text(model.displayName) },
+                                onClick = {
+                                    vm.setSelectedModel(model)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }

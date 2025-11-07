@@ -6,6 +6,7 @@ import android.app.Application
 import com.heygude.aichallenge.data.AIAgentRepository
 import com.heygude.aichallenge.data.DefaultAIAgentRepository
 import com.heygude.aichallenge.data.yandex.DefaultYandexGptDataSource
+import com.heygude.aichallenge.data.yandex.GptModel
 import com.heygude.aichallenge.presentation.SystemPromptManager
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,13 @@ class AIAgentViewModel(
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
+    private val _selectedModel = MutableStateFlow<GptModel>(GptModel.LATEST)
+    val selectedModel: StateFlow<GptModel> = _selectedModel.asStateFlow()
+
+    fun setSelectedModel(model: GptModel) {
+        _selectedModel.value = model
+    }
+
     init {
         viewModelScope.launch {
             systemPromptManager.initializeDefaultPrompt()
@@ -52,7 +60,7 @@ class AIAgentViewModel(
         viewModelScope.launch {
             val currentPrompt = systemPromptManager.currentPrompt.firstOrNull()
             val systemPrompt = currentPrompt?.content ?: ""
-            val result = repository.generateResponse(prompt, systemPrompt)
+            val result = repository.generateResponse(prompt, systemPrompt, _selectedModel.value)
             _uiState.value = result.fold(
                 onSuccess = { text ->
                     val reply = ChatMessage(
