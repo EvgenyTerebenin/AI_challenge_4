@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -38,6 +40,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -83,6 +87,8 @@ fun SettingsScreen(
     var currentTemperature by remember { mutableStateOf(temperature) }
     var modelExpanded by remember { mutableStateOf(false) }
     
+    val snackbarHostState = remember { SnackbarHostState() }
+    
     // Get temperature range based on selected model
     val temperatureRange = selectedModel.provider
     val minTemp = temperatureRange.minTemperature
@@ -91,6 +97,37 @@ fun SettingsScreen(
     // Clamp current temperature to valid range when model or temperature changes
     LaunchedEffect(temperature, selectedModel) {
         currentTemperature = temperature.coerceIn(minTemp, maxTemp)
+    }
+    
+    // Show snackbar for success/error messages
+    LaunchedEffect(uiState) {
+        when (val state = uiState) {
+            is SettingsViewModel.UiState.Success -> {
+                snackbarHostState.showSnackbar(
+                    message = state.message,
+                    duration = androidx.compose.material3.SnackbarDuration.Short
+                )
+                // Dismiss snackbar and clear state after 1 second
+                kotlinx.coroutines.delay(1000)
+                snackbarHostState.currentSnackbarData?.dismiss()
+                if (viewModel.uiState.value is SettingsViewModel.UiState.Success) {
+                    viewModel.clearError()
+                }
+            }
+            is SettingsViewModel.UiState.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = state.message,
+                    duration = androidx.compose.material3.SnackbarDuration.Short
+                )
+                // Dismiss snackbar and clear state after 1 second
+                kotlinx.coroutines.delay(500)
+                snackbarHostState.currentSnackbarData?.dismiss()
+                if (viewModel.uiState.value is SettingsViewModel.UiState.Error) {
+                    viewModel.clearError()
+                }
+            }
+            else -> {}
+        }
     }
     
     Scaffold(
@@ -108,57 +145,18 @@ fun SettingsScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
+        },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
         }
     ) { innerPadding ->
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Show error/success messages
-            if (uiState is SettingsViewModel.UiState.Error) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
-                ) {
-                    Text(
-                        text = (uiState as SettingsViewModel.UiState.Error).message,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            } else if (uiState is SettingsViewModel.UiState.Success) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
-                ) {
-                    Text(
-                        text = (uiState as SettingsViewModel.UiState.Success).message,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
-            
-            // Add new prompt button
-            Button(
-                onClick = { showAddDialog = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add New System Prompt")
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
             // Model selection
             Text(
                 text = "GPT Model",
@@ -257,19 +255,32 @@ fun SettingsScreen(
             }
             
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = "System Prompts",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
+
+            // Add new prompt button
+            Button(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add New System Prompt")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+
             // List of prompts
-            LazyColumn(
+            Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(allPrompts, key = { it.id }) { prompt ->
+                allPrompts.forEach { prompt ->
                     PromptCard(
                         prompt = prompt,
                         isSelected = prompt.id == currentPromptId,
