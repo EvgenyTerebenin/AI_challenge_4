@@ -25,8 +25,8 @@ enum class GptModel(
     }
 }
 
-enum class ModelProvider {
-    YANDEX,
-    DEEPSEEK
+enum class ModelProvider(val minTemperature: Double, val maxTemperature: Double) {
+    YANDEX(0.0, 1.0),
+    DEEPSEEK(0.0, 1.5)
 }
 

@@ -24,7 +24,7 @@ import java.time.Instant
  * Later this will be implemented with Retrofit.
  */
 interface YandexGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST): Result<String>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6): Result<String>
 }
 
 class DefaultYandexGptDataSource : YandexGptDataSource {
@@ -65,7 +65,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             .create(YandexGptApi::class.java)
     }
 
-    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
         }
@@ -106,11 +106,13 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
 ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
 ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
 
+            // Clamp temperature to model's valid range
+            val clampedTemperature = temperature.coerceIn(model.provider.minTemperature, model.provider.maxTemperature)
             val request = YandexCompletionRequest(
                 modelUri = model.getModelUri(Secrets.YANDEX_FOLDER_ID),
                 completionOptions = CompletionOptions(
                     stream = false,
-                    temperature = 0.6,
+                    temperature = clampedTemperature,
                     maxTokens = 2000
                 ),
                 messages = listOf(

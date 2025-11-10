@@ -1,6 +1,7 @@
 package com.heygude.aichallenge
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,13 +29,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,9 +75,23 @@ fun SettingsScreen(
     val allPrompts by viewModel.allPrompts.collectAsState()
     val currentPromptId by viewModel.currentPromptId.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val temperature by viewModel.temperature.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
     
     var showAddDialog by remember { mutableStateOf(false) }
     var editingPrompt by remember { mutableStateOf<SystemPrompt?>(null) }
+    var currentTemperature by remember { mutableStateOf(temperature) }
+    var modelExpanded by remember { mutableStateOf(false) }
+    
+    // Get temperature range based on selected model
+    val temperatureRange = selectedModel.provider
+    val minTemp = temperatureRange.minTemperature
+    val maxTemp = temperatureRange.maxTemperature
+    
+    // Clamp current temperature to valid range when model or temperature changes
+    LaunchedEffect(temperature, selectedModel) {
+        currentTemperature = temperature.coerceIn(minTemp, maxTemp)
+    }
     
     Scaffold(
         topBar = {
@@ -136,6 +155,105 @@ fun SettingsScreen(
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Add New System Prompt")
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Model selection
+            Text(
+                text = "GPT Model",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Model:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(
+                            onClick = { modelExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = selectedModel.displayName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false }
+                        ) {
+                            com.heygude.aichallenge.data.yandex.GptModel.entries.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model.displayName) },
+                                    onClick = {
+                                        viewModel.setSelectedModel(model)
+                                        modelExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Temperature setting
+            Text(
+                text = "Temperature",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Temperature: ${String.format("%.2f", currentTemperature)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Slider(
+                        value = currentTemperature.toFloat(),
+                        onValueChange = { currentTemperature = it.toDouble().coerceIn(minTemp, maxTemp) },
+                        valueRange = minTemp.toFloat()..maxTemp.toFloat(),
+                        steps = ((maxTemp - minTemp) / 0.1).toInt() - 1, // 0.1 increments
+                        onValueChangeFinished = {
+                            viewModel.setTemperature(currentTemperature.coerceIn(minTemp, maxTemp))
+                        }
+                    )
+                    Text(
+                        text = "Controls randomness. Lower values make responses more focused and deterministic, higher values make them more creative. Range: ${String.format("%.1f", minTemp)} - ${String.format("%.1f", maxTemp)} (${selectedModel.provider.name})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))

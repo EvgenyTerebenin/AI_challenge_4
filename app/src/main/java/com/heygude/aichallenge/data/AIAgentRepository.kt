@@ -9,7 +9,7 @@ import com.heygude.aichallenge.data.deepseek.DeepSeekGptDataSource
  * Repository abstraction to support multiple GPT providers.
  */
 interface AIAgentRepository {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST): Result<String>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6): Result<String>
 }
 
 /**
@@ -20,10 +20,10 @@ class DefaultAIAgentRepository(
     private val yandexDataSource: YandexGptDataSource,
     private val deepseekDataSource: DeepSeekGptDataSource
 ) : AIAgentRepository {
-    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel): Result<String> {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double): Result<String> {
         return when (model.provider) {
-            ModelProvider.YANDEX -> yandexDataSource.generateResponse(prompt, systemPrompt, model)
-            ModelProvider.DEEPSEEK -> deepseekDataSource.generateResponse(prompt, systemPrompt, model)
+            ModelProvider.YANDEX -> yandexDataSource.generateResponse(prompt, systemPrompt, model, temperature)
+            ModelProvider.DEEPSEEK -> deepseekDataSource.generateResponse(prompt, systemPrompt, model, temperature)
         }
     }
 }

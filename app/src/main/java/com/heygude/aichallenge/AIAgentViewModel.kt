@@ -9,10 +9,12 @@ import com.heygude.aichallenge.data.yandex.DefaultYandexGptDataSource
 import com.heygude.aichallenge.data.yandex.GptModel
 import com.heygude.aichallenge.data.deepseek.DefaultDeepSeekGptDataSource
 import com.heygude.aichallenge.presentation.SystemPromptManager
+import com.heygude.aichallenge.presentation.SettingsManager
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AIAgentViewModel(
@@ -21,7 +23,8 @@ class AIAgentViewModel(
         DefaultYandexGptDataSource(),
         DefaultDeepSeekGptDataSource()
     ),
-    private val systemPromptManager: SystemPromptManager = SystemPromptManager(application)
+    private val systemPromptManager: SystemPromptManager = SystemPromptManager(application),
+    private val settingsManager: SettingsManager = SettingsManager(application)
 ) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
@@ -38,11 +41,18 @@ class AIAgentViewModel(
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    private val _selectedModel = MutableStateFlow<GptModel>(GptModel.YANDEX_LATEST)
-    val selectedModel: StateFlow<GptModel> = _selectedModel.asStateFlow()
+    // Read selected model from SettingsManager
+    val selectedModel: StateFlow<GptModel> = settingsManager.selectedModel
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = GptModel.YANDEX_LATEST
+        )
 
     fun setSelectedModel(model: GptModel) {
-        _selectedModel.value = model
+        viewModelScope.launch {
+            settingsManager.setSelectedModel(model)
+        }
     }
 
     init {
@@ -65,8 +75,9 @@ class AIAgentViewModel(
         viewModelScope.launch {
             val currentPrompt = systemPromptManager.currentPrompt.firstOrNull()
             val systemPrompt = currentPrompt?.content ?: ""
-            val selectedModel = _selectedModel.value
-            val result = repository.generateResponse(prompt, systemPrompt, selectedModel)
+            val currentModel = selectedModel.value
+            val temperature = settingsManager.temperature.firstOrNull() ?: 0.6
+            val result = repository.generateResponse(prompt, systemPrompt, currentModel, temperature)
             _uiState.value = result.fold(
                 onSuccess = { text ->
                     val reply = ChatMessage(
@@ -74,7 +85,7 @@ class AIAgentViewModel(
                         text = text,
                         isUser = false,
                         timestampMs = System.currentTimeMillis(),
-                        model = selectedModel
+                        model = currentModel
                     )
                     _messages.value = _messages.value + reply
                     UiState.Success(text)
@@ -85,7 +96,7 @@ class AIAgentViewModel(
                         text = "Error: ${error.message ?: "Unknown error"}",
                         isUser = false,
                         timestampMs = System.currentTimeMillis(),
-                        model = selectedModel
+                        model = currentModel
                     )
                     _messages.value = _messages.value + reply
                     UiState.Error(error.message ?: "Unknown error")

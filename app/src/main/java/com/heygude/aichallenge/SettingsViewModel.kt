@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import android.app.Application
 import com.heygude.aichallenge.presentation.SystemPrompt
 import com.heygude.aichallenge.presentation.SystemPromptManager
+import com.heygude.aichallenge.presentation.SettingsManager
+import com.heygude.aichallenge.data.yandex.GptModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +16,8 @@ import java.util.UUID
 
 class SettingsViewModel(
     application: Application,
-    private val systemPromptManager: SystemPromptManager = SystemPromptManager(application)
+    private val systemPromptManager: SystemPromptManager = SystemPromptManager(application),
+    private val settingsManager: SettingsManager = SettingsManager(application)
 ) : AndroidViewModel(application) {
 
     val allPrompts: StateFlow<List<SystemPrompt>> = systemPromptManager.allPrompts
@@ -29,6 +32,20 @@ class SettingsViewModel(
             scope = viewModelScope,
             started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
             initialValue = null
+        )
+    
+    val temperature: StateFlow<Double> = settingsManager.temperature
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = 0.6
+        )
+    
+    val selectedModel: StateFlow<GptModel> = settingsManager.selectedModel
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = GptModel.YANDEX_LATEST
         )
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
@@ -84,6 +101,28 @@ class SettingsViewModel(
                 _uiState.value = UiState.Success("Current prompt changed successfully")
             } catch (e: Exception) {
                 _uiState.value = UiState.Error("Failed to change prompt: ${e.message}")
+            }
+        }
+    }
+
+    fun setTemperature(temperature: Double) {
+        viewModelScope.launch {
+            try {
+                settingsManager.setTemperature(temperature)
+                _uiState.value = UiState.Success("Temperature updated successfully")
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Failed to update temperature: ${e.message}")
+            }
+        }
+    }
+    
+    fun setSelectedModel(model: GptModel) {
+        viewModelScope.launch {
+            try {
+                settingsManager.setSelectedModel(model)
+                _uiState.value = UiState.Success("Model updated successfully")
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Failed to update model: ${e.message}")
             }
         }
     }
