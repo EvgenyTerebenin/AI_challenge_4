@@ -10,6 +10,7 @@ import com.heygude.aichallenge.data.yandex.GptModel
 import com.heygude.aichallenge.data.deepseek.DefaultDeepSeekGptDataSource
 import com.heygude.aichallenge.presentation.SystemPromptManager
 import com.heygude.aichallenge.presentation.SettingsManager
+import com.heygude.aichallenge.R
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -91,15 +92,18 @@ class AIAgentViewModel(
                     UiState.Success(text)
                 },
                 onFailure = { error ->
+                    val context = getApplication<Application>()
+                    val errorMessage = error.message ?: context.getString(R.string.unknown_error)
+                    val errorText = context.getString(R.string.error_format, errorMessage)
                     val reply = ChatMessage(
                         id = System.currentTimeMillis(),
-                        text = "Error: ${error.message ?: "Unknown error"}",
+                        text = errorText,
                         isUser = false,
                         timestampMs = System.currentTimeMillis(),
                         model = currentModel
                     )
                     _messages.value = _messages.value + reply
-                    UiState.Error(error.message ?: "Unknown error")
+                    UiState.Error(errorMessage)
                 }
             )
         }

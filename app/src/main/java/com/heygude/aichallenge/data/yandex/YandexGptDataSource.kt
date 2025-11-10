@@ -18,6 +18,7 @@ import retrofit2.Retrofit
 import retrofit2.HttpException
 import java.util.concurrent.TimeUnit
 import java.time.Instant
+import timber.log.Timber
 
 /**
  * Data source responsible for invoking Yandex GPT API.
@@ -67,11 +68,13 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
 
     override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
+            Timber.w("YandexGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
         }
         return@withContext try {
             val timestamp = Instant.now().toString()
             val modelDisplayName = model.displayName
+            Timber.d("YandexGPT: Starting request - Model: $modelDisplayName, Temperature: $temperature, Prompt length: ${prompt.length}")
             val formattedSystemPrompt = """$systemPrompt
                 ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
 Не используй Markdown совершенно. Не оборачивай ответ в тройные обратные кавычки ``` ни в начале, ни в конце. Отвечай чистой строкой без какого-либо форматирования.
@@ -120,9 +123,12 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
                     Message(role = "user", text = prompt)
                 )
             )
+            Timber.d("YandexGPT: Request - ModelUri: ${request.modelUri}, Temperature: ${request.completionOptions.temperature}, Messages count: ${request.messages.size}")
             val response = api.completion(request)
             val raw = response.result?.alternatives?.firstOrNull()?.message?.text ?: ""
+            Timber.d("YandexGPT: Response received - Raw length: ${raw.length}, Has alternatives: ${response.result?.alternatives != null}")
             val cleaned = stripCodeFences(raw)
+            Timber.d("YandexGPT: Response cleaned - Final length: ${cleaned.length}")
             Result.success(cleaned)
         } catch (t: Throwable) {
             if (t is HttpException) {
@@ -131,8 +137,10 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
                     raw?.let { json.decodeFromString(ApiError.serializer(), it) }
                 } catch (_: Throwable) { null }
                 val message = parsed?.error?.message ?: parsed?.message ?: raw ?: t.message()
+                Timber.e(t, "YandexGPT: HTTP Error - Code: ${t.code()}, Message: $message")
                 Result.failure(IllegalStateException(message))
             } else {
+                Timber.e(t, "YandexGPT: Request failed - ${t.message}")
                 Result.failure(t)
             }
         }

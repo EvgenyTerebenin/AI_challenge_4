@@ -7,6 +7,7 @@ import com.heygude.aichallenge.presentation.SystemPrompt
 import com.heygude.aichallenge.presentation.SystemPromptManager
 import com.heygude.aichallenge.presentation.SettingsManager
 import com.heygude.aichallenge.data.yandex.GptModel
+import com.heygude.aichallenge.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,7 +54,7 @@ class SettingsViewModel(
 
     fun addPrompt(name: String, content: String) {
         if (name.isBlank() || content.isBlank()) {
-            _uiState.value = UiState.Error("Name and content cannot be empty")
+            _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.name_and_content_cannot_be_empty))
             return
         }
         viewModelScope.launch {
@@ -65,9 +66,9 @@ class SettingsViewModel(
                     isDefault = false
                 )
                 systemPromptManager.addPrompt(prompt)
-                _uiState.value = UiState.Success("Prompt added successfully")
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.prompt_added_successfully))
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to add prompt: ${e.message}")
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_add_prompt, e.message ?: ""))
             }
         }
     }
@@ -76,9 +77,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             try {
                 systemPromptManager.updatePrompt(prompt)
-                _uiState.value = UiState.Success("Prompt updated successfully")
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.prompt_updated_successfully))
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to update prompt: ${e.message}")
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_update_prompt, e.message ?: ""))
             }
         }
     }
@@ -87,9 +88,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             try {
                 systemPromptManager.deletePrompt(promptId)
-                _uiState.value = UiState.Success("Prompt deleted successfully")
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.prompt_deleted_successfully))
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to delete prompt: ${e.message}")
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_delete_prompt, e.message ?: ""))
             }
         }
     }
@@ -98,9 +99,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             try {
                 systemPromptManager.setCurrentPrompt(promptId)
-                _uiState.value = UiState.Success("Current prompt changed successfully")
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.current_prompt_changed_successfully))
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to change prompt: ${e.message}")
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_change_prompt, e.message ?: ""))
             }
         }
     }
@@ -109,9 +110,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             try {
                 settingsManager.setTemperature(temperature)
-                _uiState.value = UiState.Success("Temperature updated successfully")
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.temperature_updated_successfully))
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to update temperature: ${e.message}")
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_update_temperature, e.message ?: ""))
             }
         }
     }
@@ -120,9 +121,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             try {
                 settingsManager.setSelectedModel(model)
-                _uiState.value = UiState.Success("Model updated successfully")
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.model_updated_successfully))
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to update model: ${e.message}")
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_update_model, e.message ?: ""))
             }
         }
     }

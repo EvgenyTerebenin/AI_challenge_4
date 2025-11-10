@@ -1,3 +1,50 @@
 <resources>
     <string name="app_name">AI Challenge</string>
+    
+    <!-- Main Activity -->
+    <string name="user">Пользователь</string>
+    <string name="ai">AI</string>
+    <string name="message">Сообщение</string>
+    <string name="text_copied_to_clipboard">Текст скопирован в буфер обмена</string>
+    <string name="generating">Генерируется…</string>
+    <string name="send">Отправить</string>
+    <string name="show_messages_in_json">Показывать сообщения в JSON</string>
+    <string name="settings">Настройки</string>
+    <string name="error_format">Ошибка: %1$s</string>
+    <string name="unknown_error">Неизвестная ошибка</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings_title">Настройки</string>
+    <string name="back">Назад</string>
+    <string name="gpt_model">GPT Модель</string>
+    <string name="model">Модель:</string>
+    <string name="temperature">Температура</string>
+    <string name="temperature_value">Температура: %1$.2f</string>
+    <string name="temperature_description">Управляет случайностью. Низкие значения делают ответы более сфокусированными и детерминированными, высокие значения делают их более креативными. Диапазон: %1$.1f - %2$.1f (%3$s)</string>
+    <string name="system_prompts">Системные промпты</string>
+    <string name="add_new_system_prompt">Добавить новый системный промпт</string>
+    <string name="default_prompt">По умолчанию</string>
+    <string name="edit">Редактировать</string>
+    <string name="delete">Удалить</string>
+    <string name="edit_system_prompt">Редактировать системный промпт</string>
+    <string name="add_system_prompt">Добавить системный промпт</string>
+    <string name="name">Имя</string>
+    <string name="content">Содержание</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+    
+    <!-- Settings ViewModel Messages -->
+    <string name="name_and_content_cannot_be_empty">Имя и содержание не могут быть пустыми</string>
+    <string name="prompt_added_successfully">Промпт успешно добавлен</string>
+    <string name="prompt_updated_successfully">Промпт успешно обновлен</string>
+    <string name="prompt_deleted_successfully">Промпт успешно удален</string>
+    <string name="current_prompt_changed_successfully">Текущий промпт успешно изменен</string>
+    <string name="temperature_updated_successfully">Температура успешно обновлена</string>
+    <string name="model_updated_successfully">Модель успешно обновлена</string>
+    <string name="failed_to_add_prompt">Не удалось добавить промпт: %1$s</string>
+    <string name="failed_to_update_prompt">Не удалось обновить промпт: %1$s</string>
+    <string name="failed_to_delete_prompt">Не удалось удалить промпт: %1$s</string>
+    <string name="failed_to_change_prompt">Не удалось изменить промпт: %1$s</string>
+    <string name="failed_to_update_temperature">Не удалось обновить температуру: %1$s</string>
+    <string name="failed_to_update_model">Не удалось обновить модель: %1$s</string>
 </resources>

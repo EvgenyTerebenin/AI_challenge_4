@@ -77,6 +77,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+    // Logging
+    implementation(libs.timber)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -57,7 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.heygude.aichallenge.presentation.SystemPrompt
+import com.heygude.aichallenge.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,10 +135,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -159,7 +161,7 @@ fun SettingsScreen(
         ) {
             // Model selection
             Text(
-                text = "GPT Model",
+                text = stringResource(R.string.gpt_model),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -177,7 +179,7 @@ fun SettingsScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Model:",
+                        text = stringResource(R.string.model),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 8.dp),
                         color = MaterialTheme.colorScheme.onSurface
@@ -214,7 +216,7 @@ fun SettingsScreen(
             
             // Temperature setting
             Text(
-                text = "Temperature",
+                text = stringResource(R.string.temperature),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -232,7 +234,7 @@ fun SettingsScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Temperature: ${String.format("%.2f", currentTemperature)}",
+                        text = stringResource(R.string.temperature_value, currentTemperature),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
@@ -246,7 +248,7 @@ fun SettingsScreen(
                         }
                     )
                     Text(
-                        text = "Controls randomness. Lower values make responses more focused and deterministic, higher values make them more creative. Range: ${String.format("%.1f", minTemp)} - ${String.format("%.1f", maxTemp)} (${selectedModel.provider.name})",
+                        text = stringResource(R.string.temperature_description, minTemp, maxTemp, selectedModel.provider.name),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp)
@@ -257,7 +259,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "System Prompts",
+                text = stringResource(R.string.system_prompts),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -270,7 +272,7 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Add New System Prompt")
+                Text(stringResource(R.string.add_new_system_prompt))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -360,7 +362,7 @@ fun PromptCard(
                         )
                         if (prompt.isDefault) {
                             Text(
-                                text = "Default",
+                                text = stringResource(R.string.default_prompt),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -371,14 +373,14 @@ fun PromptCard(
                     IconButton(onClick = onEdit) {
                         Icon(
                             Icons.Default.Edit,
-                            contentDescription = "Edit",
+                            contentDescription = stringResource(R.string.edit),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = onDelete) {
                         Icon(
                             Icons.Default.Delete,
-                            contentDescription = "Delete",
+                            contentDescription = stringResource(R.string.delete),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -414,7 +416,7 @@ fun AddEditPromptDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (prompt != null) "Edit System Prompt" else "Add System Prompt") },
+        title = { Text(if (prompt != null) stringResource(R.string.edit_system_prompt) else stringResource(R.string.add_system_prompt)) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -422,14 +424,14 @@ fun AddEditPromptDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.name)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("Content") },
+                    label = { Text(stringResource(R.string.content)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp),
@@ -442,12 +444,12 @@ fun AddEditPromptDialog(
                 onClick = { onSave(name, content) },
                 enabled = name.isNotBlank() && content.isNotBlank()
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

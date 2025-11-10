@@ -17,6 +17,7 @@ import retrofit2.Retrofit
 import retrofit2.HttpException
 import java.util.concurrent.TimeUnit
 import java.time.Instant
+import timber.log.Timber
 
 /**
  * Data source responsible for invoking DeepSeek GPT API.
@@ -55,11 +56,13 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
 
     override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
+            Timber.w("DeepSeekGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
         }
         return@withContext try {
             val timestamp = Instant.now().toString()
             val modelDisplayName = model.displayName
+            Timber.d("DeepSeekGPT: Starting request - Model: $modelDisplayName, Temperature: $temperature, Prompt length: ${prompt.length}")
             val formattedSystemPrompt = """$systemPrompt
 ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
 Не используй Markdown совершенно. Не оборачивай ответ в тройные обратные кавычки ``` ни в начале, ни в конце. Отвечай чистой строкой без какого-либо форматирования.
@@ -106,12 +109,15 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
                 max_tokens = 2000,
                 stream = false
             )
+            Timber.d("DeepSeekGPT: Request - Model: ${request.model}, Temperature: ${request.temperature}, Messages count: ${request.messages.size}")
             val response = api.chatCompletion(
                 authorization = "Bearer ${Secrets.DEEPSEEK_API_KEY}",
                 body = request
             )
             val raw = response.choices?.firstOrNull()?.message?.content ?: ""
+            Timber.d("DeepSeekGPT: Response received - Raw length: ${raw.length}, Has choices: ${response.choices != null}")
             val cleaned = stripCodeFences(raw)
+            Timber.d("DeepSeekGPT: Response cleaned - Final length: ${cleaned.length}")
             Result.success(cleaned)
         } catch (t: Throwable) {
             if (t is HttpException) {
@@ -120,8 +126,10 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
                     raw?.let { json.decodeFromString<com.heygude.aichallenge.data.deepseek.api.DeepSeekApiError>(it) }
                 } catch (_: Throwable) { null }
                 val message = parsed?.error?.message ?: raw ?: t.message() ?: "Unknown error"
+                Timber.e(t, "DeepSeekGPT: HTTP Error - Code: ${t.code()}, Message: $message")
                 Result.failure(IllegalStateException(message))
             } else {
+                Timber.e(t, "DeepSeekGPT: Request failed - ${t.message}")
                 Result.failure(t)
             }
         }

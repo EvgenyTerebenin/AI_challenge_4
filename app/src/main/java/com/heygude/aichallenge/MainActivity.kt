@@ -2,6 +2,7 @@ package com.heygude.aichallenge
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import com.heygude.aichallenge.BuildConfig
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
@@ -70,6 +71,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.heygude.aichallenge.ui.theme.AIChallengeTheme
 import com.heygude.aichallenge.data.yandex.GptModel
+import androidx.compose.ui.res.stringResource
+import com.heygude.aichallenge.R
+import timber.log.Timber
 
 @Serializable
 private data class ApiResponse(
@@ -112,6 +116,9 @@ private fun extractTextFromJson(jsonText: String): String {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
         enableEdgeToEdge()
         setContent {
             AIChallengeTheme {
@@ -165,6 +172,8 @@ fun AIAgentScreen(
     val selectedModel by vm.selectedModel.collectAsState()
     var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val messageLabel = stringResource(R.string.message)
+    val textCopiedMessage = stringResource(R.string.text_copied_to_clipboard)
 
     // Auto-scroll to top (index 0) when new messages arrive
     LaunchedEffect(messages.size) {
@@ -203,7 +212,7 @@ fun AIAgentScreen(
                 ) {
                     // Title
                     Text(
-                        text = if (isUser) "User" else (message.model?.displayName ?: "AI"),
+                        text = if (isUser) stringResource(R.string.user) else (message.model?.displayName ?: stringResource(R.string.ai)),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier
                             .fillMaxWidth(0.75f)
@@ -228,9 +237,9 @@ fun AIAgentScreen(
                                 detectTapGestures(
                                     onLongPress = {
                                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        val clip = ClipData.newPlainText("Message", displayText)
+                                        val clip = ClipData.newPlainText(messageLabel, displayText)
                                         clipboard.setPrimaryClip(clip)
-                                        Toast.makeText(context, "Text copied to clipboard", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, textCopiedMessage, Toast.LENGTH_SHORT).show()
                                     }
                                 )
                             },
@@ -267,7 +276,7 @@ fun AIAgentScreen(
                 exit = fadeOut()
             ) {
                 Text(
-                    text = "Generating...",
+                    text = stringResource(R.string.generating),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -294,7 +303,7 @@ fun AIAgentScreen(
                         .heightIn(min = 48.dp, max = 200.dp),
                     placeholder = { 
                         Text(
-                            "Message",
+                            stringResource(R.string.message),
                             style = MaterialTheme.typography.bodyLarge
                         ) 
                     },
@@ -333,7 +342,7 @@ fun AIAgentScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Send,
-                        contentDescription = "Send",
+                        contentDescription = stringResource(R.string.send),
                         tint = if (prompt.isNotBlank()) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -356,7 +365,7 @@ fun AIAgentScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Model:",
+                    text = stringResource(R.string.model),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(end = 8.dp),
                     color = MaterialTheme.colorScheme.onSurface
@@ -404,7 +413,7 @@ fun AIAgentScreen(
                     onCheckedChange = { showJsonMessages = it }
                 )
                 Text(
-                    text = "Show messages in JSON",
+                    text = stringResource(R.string.show_messages_in_json),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(start = 8.dp),
                     color = MaterialTheme.colorScheme.onSurface
@@ -413,7 +422,7 @@ fun AIAgentScreen(
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
+                    contentDescription = stringResource(R.string.settings),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
