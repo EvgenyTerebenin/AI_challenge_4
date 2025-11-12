@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,6 +19,7 @@ class SettingsManager(private val context: Context) {
     
     private val temperatureKey = doublePreferencesKey("temperature")
     private val selectedModelKey = stringPreferencesKey("selected_model")
+    private val maxTokensKey = intPreferencesKey("max_tokens")
     
     val temperature: Flow<Double> = dataStore.data.map { preferences ->
         preferences[temperatureKey] ?: 0.6 // Default temperature
@@ -32,6 +34,10 @@ class SettingsManager(private val context: Context) {
         }
     }
     
+    val maxTokens: Flow<Int> = dataStore.data.map { preferences ->
+        preferences[maxTokensKey] ?: 2000 // Default max tokens
+    }
+    
     suspend fun setTemperature(temperature: Double) {
         dataStore.edit { preferences ->
             preferences[temperatureKey] = temperature.coerceIn(0.0, 2.0)
@@ -41,6 +47,12 @@ class SettingsManager(private val context: Context) {
     suspend fun setSelectedModel(model: GptModel) {
         dataStore.edit { preferences ->
             preferences[selectedModelKey] = model.name
+        }
+    }
+    
+    suspend fun setMaxTokens(maxTokens: Int) {
+        dataStore.edit { preferences ->
+            preferences[maxTokensKey] = maxTokens.coerceIn(1, 32000) // Clamp between 1 and 32000
         }
     }
 }

@@ -47,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -245,42 +246,65 @@ fun AIAgentScreen(
                             },
                         tonalElevation = 1.dp
                     ) {
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            color = if (isUser) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onTertiaryContainer
+                        Column {
+                            Text(
+                                text = displayText,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                color = if (isUser) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                }
+                            )
+                            // Token information
+                            if (isUser && message.requestTokens != null) {
+                                // Show request tokens for user messages
+                                Text(
+                                    text = "Request tokens: ${message.requestTokens}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                )
+                            } else if (!isUser && (message.requestTokens != null || message.responseTokens != null || message.responseTimeMs != null || message.costUsd != null)) {
+                                // Show token info for AI messages
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                ) {
+                                    if (message.requestTokens != null) {
+                                        Text(
+                                            text = "Request tokens: ${message.requestTokens}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                    if (message.responseTokens != null) {
+                                        Text(
+                                            text = "Response tokens: ${message.responseTokens}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                    if (message.responseTimeMs != null) {
+                                        val seconds = message.responseTimeMs / 1000.0
+                                        Text(
+                                            text = "Response time: ${String.format("%.2f", seconds)}s",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                    if (message.costUsd != null) {
+                                        Text(
+                                            text = "Cost: $${String.format("%.6f", message.costUsd)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
                             }
-                        )
+                        }
                     }
                 }
-            }
-        }
-        // Generating indicator - fixed height to prevent layout shifts
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp), // Fixed height to prevent layout shifts
-            color = if (uiState is AIAgentViewModel.UiState.Loading) {
-                MaterialTheme.colorScheme.surfaceVariant
-            } else {
-                Color.Transparent
-            }
-        ) {
-            AnimatedVisibility(
-                visible = uiState is AIAgentViewModel.UiState.Loading,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Text(
-                    text = stringResource(R.string.generating),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
         Surface(
@@ -329,26 +353,33 @@ fun AIAgentScreen(
                         }
                     )
                 )
-                IconButton(
-                    onClick = {
-                        if (prompt.isNotBlank()) {
-                            vm.sendPrompt(prompt)
-                            prompt = ""
-                            keyboardController?.hide()
-                        }
-                    },
-                    modifier = Modifier,
-                    enabled = prompt.isNotBlank()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Send,
-                        contentDescription = stringResource(R.string.send),
-                        tint = if (prompt.isNotBlank()) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                        }
+                if (uiState is AIAgentViewModel.UiState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(8.dp),
+                        color = MaterialTheme.colorScheme.primary
                     )
+                } else {
+                    IconButton(
+                        onClick = {
+                            if (prompt.isNotBlank()) {
+                                vm.sendPrompt(prompt)
+                                prompt = ""
+                                keyboardController?.hide()
+                            }
+                        },
+                        modifier = Modifier,
+                        enabled = prompt.isNotBlank()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = stringResource(R.string.send),
+                            tint = if (prompt.isNotBlank()) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            }
+                        )
+                    }
                 }
             }
         }

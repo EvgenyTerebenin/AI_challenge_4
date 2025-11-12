@@ -83,10 +83,12 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val temperature by viewModel.temperature.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
+    val maxTokens by viewModel.maxTokens.collectAsState()
     
     var showAddDialog by remember { mutableStateOf(false) }
     var editingPrompt by remember { mutableStateOf<SystemPrompt?>(null) }
     var currentTemperature by remember { mutableStateOf(temperature) }
+    var currentMaxTokens by remember { mutableStateOf(maxTokens.toString()) }
     var modelExpanded by remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
@@ -99,6 +101,11 @@ fun SettingsScreen(
     // Clamp current temperature to valid range when model or temperature changes
     LaunchedEffect(temperature, selectedModel) {
         currentTemperature = temperature.coerceIn(minTemp, maxTemp)
+    }
+    
+    // Update currentMaxTokens when maxTokens changes
+    LaunchedEffect(maxTokens) {
+        currentMaxTokens = maxTokens.toString()
     }
     
     // Show snackbar for success/error messages
@@ -256,6 +263,63 @@ fun SettingsScreen(
                 }
             }
             
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Max Tokens setting
+            Text(
+                text = stringResource(R.string.max_tokens),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = currentMaxTokens,
+                        onValueChange = { newValue ->
+                            // Only allow digits
+                            if (newValue.all { it.isDigit() } || newValue.isEmpty()) {
+                                currentMaxTokens = newValue
+                            }
+                        },
+                        label = { Text(stringResource(R.string.max_tokens)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        supportingText = {
+                            Text(stringResource(R.string.max_tokens_description))
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val tokens = currentMaxTokens.toIntOrNull()
+                            if (tokens != null && tokens in 1..32000) {
+                                viewModel.setMaxTokens(tokens)
+                            } else {
+                                // Reset to current value if invalid
+                                currentMaxTokens = maxTokens.toString()
+                            }
+                        },
+                        enabled = currentMaxTokens.toIntOrNull()?.let { it in 1..32000 } == true && currentMaxTokens.toIntOrNull() != maxTokens
+                    ) {
+                        Text(stringResource(R.string.save))
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
