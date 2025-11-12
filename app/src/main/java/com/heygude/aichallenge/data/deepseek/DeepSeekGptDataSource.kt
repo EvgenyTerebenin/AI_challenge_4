@@ -23,7 +23,7 @@ import timber.log.Timber
  * Data source responsible for invoking DeepSeek GPT API.
  */
 interface DeepSeekGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double = 0.6): Result<String>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double = 0.6, maxTokens: Int = 2000): Result<String>
 }
 
 class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
@@ -54,7 +54,7 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
             .create(DeepSeekGptApi::class.java)
     }
 
-    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             Timber.w("DeepSeekGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
@@ -106,7 +106,7 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
                     DeepSeekMessage(role = "user", content = prompt)
                 ),
                 temperature = clampedTemperature,
-                max_tokens = 2000,
+                max_tokens = maxTokens.coerceIn(1, 32000),
                 stream = false
             )
             Timber.d("DeepSeekGPT: Request - Model: ${request.model}, Temperature: ${request.temperature}, Messages count: ${request.messages.size}")

@@ -7,6 +7,7 @@ import com.heygude.aichallenge.data.AIAgentRepository
 import com.heygude.aichallenge.data.DefaultAIAgentRepository
 import com.heygude.aichallenge.data.yandex.DefaultYandexGptDataSource
 import com.heygude.aichallenge.data.yandex.GptModel
+import com.heygude.aichallenge.data.yandex.YandexResponse
 import com.heygude.aichallenge.data.deepseek.DefaultDeepSeekGptDataSource
 import com.heygude.aichallenge.presentation.SystemPromptManager
 import com.heygude.aichallenge.presentation.SettingsManager
@@ -36,7 +37,11 @@ class AIAgentViewModel(
         val text: String,
         val isUser: Boolean,
         val timestampMs: Long,
-        val model: GptModel? = null // Model used for AI responses, null for user messages
+        val model: GptModel? = null, // Model used for AI responses, null for user messages
+        val requestTokens: Int? = null, // Request tokens (for user messages and AI responses)
+        val responseTokens: Int? = null, // Response tokens (only for AI responses)
+        val responseTimeMs: Long? = null, // Response execution time in milliseconds (only for AI responses)
+        val costUsd: Double? = null // Request cost in USD (only for AI responses)
     )
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -65,6 +70,9 @@ class AIAgentViewModel(
     fun sendPrompt(prompt: String) {
         if (prompt.isBlank()) return
         val now = System.currentTimeMillis()
+        val currentModel = selectedModel.value
+        
+        // Add user message immediately
         val userMessage = ChatMessage(
             id = now,
             text = prompt,
@@ -72,29 +80,62 @@ class AIAgentViewModel(
             timestampMs = now
         )
         _messages.value = _messages.value + userMessage
+        
         _uiState.value = UiState.Loading
         viewModelScope.launch {
             val currentPrompt = systemPromptManager.currentPrompt.firstOrNull()
             val systemPrompt = currentPrompt?.content ?: ""
-            val currentModel = selectedModel.value
             val temperature = settingsManager.temperature.firstOrNull() ?: 0.6
-            val result = repository.generateResponse(prompt, systemPrompt, currentModel, temperature)
+            val maxTokens = settingsManager.maxTokens.firstOrNull() ?: 2000
+            
+            // For Yandex, use the method with token tracking
+            val result = if (currentModel.provider == com.heygude.aichallenge.data.yandex.ModelProvider.YANDEX) {
+                repository.generateResponseWithTokens(prompt, systemPrompt, currentModel, temperature, maxTokens)
+            } else {
+                // For other providers, use regular method and wrap result
+                repository.generateResponse(prompt, systemPrompt, currentModel, temperature, maxTokens).map { text ->
+                    YandexResponse(text, null)
+                }
+            }
+            
             _uiState.value = result.fold(
-                onSuccess = { text ->
+                onSuccess = { yandexResponse ->
+                    val response = yandexResponse ?: YandexResponse("", null)
+                    val tokenInfo = response.tokenInfo
+                    
+                    // Update user message with request tokens if available
+                    val userRequestTokens = tokenInfo?.requestTokens
+                    if (userRequestTokens != null) {
+                        _messages.value = _messages.value.map { msg ->
+                            if (msg.id == now && msg.isUser) {
+                                msg.copy(requestTokens = userRequestTokens)
+                            } else {
+                                msg
+                            }
+                        }
+                    }
+                    
                     val reply = ChatMessage(
                         id = System.currentTimeMillis(),
-                        text = text,
+                        text = response.text,
                         isUser = false,
                         timestampMs = System.currentTimeMillis(),
-                        model = currentModel
+                        model = currentModel,
+                        requestTokens = tokenInfo?.requestTokens,
+                        responseTokens = tokenInfo?.responseTokens,
+                        responseTimeMs = tokenInfo?.responseTimeMs,
+                        costUsd = tokenInfo?.costUsd
                     )
+                    
+                    // Add reply message
                     _messages.value = _messages.value + reply
-                    UiState.Success(text)
+                    UiState.Success(response.text)
                 },
                 onFailure = { error ->
                     val context = getApplication<Application>()
                     val errorMessage = error.message ?: context.getString(R.string.unknown_error)
                     val errorText = context.getString(R.string.error_format, errorMessage)
+                    
                     val reply = ChatMessage(
                         id = System.currentTimeMillis(),
                         text = errorText,

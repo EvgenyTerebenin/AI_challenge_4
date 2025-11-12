@@ -6,6 +6,7 @@ import com.heygude.aichallenge.data.yandex.api.Message
 import com.heygude.aichallenge.data.yandex.api.YandexCompletionRequest
 import com.heygude.aichallenge.data.yandex.api.YandexGptApi
 import com.heygude.aichallenge.data.yandex.api.ApiError
+import com.heygude.aichallenge.data.yandex.api.YandexTokenizeRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
@@ -21,11 +22,30 @@ import java.time.Instant
 import timber.log.Timber
 
 /**
+ * Token information for a request/response
+ */
+data class TokenInfo(
+    val requestTokens: Int,
+    val responseTokens: Int,
+    val responseTimeMs: Long,
+    val costUsd: Double
+)
+
+/**
+ * Response with text and token information
+ */
+data class YandexResponse(
+    val text: String,
+    val tokenInfo: TokenInfo?
+)
+
+/**
  * Data source responsible for invoking Yandex GPT API.
  * Later this will be implemented with Retrofit.
  */
 interface YandexGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6): Result<String>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6, maxTokens: Int = 2000): Result<String>
+    suspend fun generateResponseWithTokens(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6, maxTokens: Int = 2000): Result<YandexResponse>
 }
 
 class DefaultYandexGptDataSource : YandexGptDataSource {
@@ -51,9 +71,9 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
         OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS) // Increased for large responses
+            .writeTimeout(60, TimeUnit.SECONDS) // Increased for large requests
             .build()
     }
 
@@ -66,7 +86,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             .create(YandexGptApi::class.java)
     }
 
-    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             Timber.w("YandexGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
@@ -116,7 +136,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
                 completionOptions = CompletionOptions(
                     stream = false,
                     temperature = clampedTemperature,
-                    maxTokens = 2000
+                    maxTokens = maxTokens.coerceIn(1, 32000)
                 ),
                 messages = listOf(
                     Message(role = "system", text = formattedSystemPrompt),
@@ -130,6 +150,145 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             val cleaned = stripCodeFences(raw)
             Timber.d("YandexGPT: Response cleaned - Final length: ${cleaned.length}")
             Result.success(cleaned)
+        } catch (t: Throwable) {
+            if (t is HttpException) {
+                val raw = t.response()?.errorBody()?.string()
+                val parsed = try {
+                    raw?.let { json.decodeFromString(ApiError.serializer(), it) }
+                } catch (_: Throwable) { null }
+                val message = parsed?.error?.message ?: parsed?.message ?: raw ?: t.message()
+                Timber.e(t, "YandexGPT: HTTP Error - Code: ${t.code()}, Message: $message")
+                Result.failure(IllegalStateException(message))
+            } else {
+                Timber.e(t, "YandexGPT: Request failed - ${t.message}")
+                Result.failure(t)
+            }
+        }
+    }
+
+    override suspend fun generateResponseWithTokens(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int): Result<YandexResponse> = withContext(Dispatchers.IO) {
+        if (prompt.isBlank()) {
+            Timber.w("YandexGPT: Prompt is blank")
+            return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
+        }
+        return@withContext try {
+            val timestamp = Instant.now().toString()
+            val modelDisplayName = model.displayName
+            val modelUri = model.getModelUri(Secrets.YANDEX_FOLDER_ID)
+            Timber.d("YandexGPT: Starting request - Model: $modelDisplayName, Temperature: $temperature, Prompt length: ${prompt.length}")
+            
+            val formattedSystemPrompt = """$systemPrompt
+                ВАЖНО: Всегда отвечай строго в следующем формате в виде строки, но чтоб его можно было распарсить как JSON.
+Не используй Markdown совершенно. Не оборачивай ответ в тройные обратные кавычки ``` ни в начале, ни в конце. Отвечай чистой строкой без какого-либо форматирования.
+
+{
+  \"status\": \"success\",
+  \"data\": { 
+    \"text\": \"Основной текст ответа от модели\",
+    \"metadata\": {
+      \"model\": \"$modelDisplayName\",
+      \"timestamp\": \"$timestamp\",
+      \"tokens_used\": количество использованных токенов
+    }
+  },
+  \"error\": null
+}
+
+Или в случае ошибки:
+
+{
+  \"status\": \"error\",
+  \"data\": null,
+  \"error\": {
+    \"code\": \"код ошибки\",
+    \"message\": \"Описание ошибки\",
+    \"details\": {
+      \"retry_after\": 60
+    }
+  }
+}
+
+ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
+ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
+
+            // Count request tokens using tokenizer API
+            val requestText = formattedSystemPrompt + "\n\n" + prompt
+            val tokenizeRequest = YandexTokenizeRequest(
+                modelUri = modelUri,
+                text = requestText
+            )
+            val tokenizeResponse = api.tokenize(tokenizeRequest)
+            val requestTokens = tokenizeResponse.tokens?.size ?: 0
+            Timber.d("YandexGPT: Request tokens: $requestTokens")
+
+            // Clamp temperature to model's valid range
+            val clampedTemperature = temperature.coerceIn(model.provider.minTemperature, model.provider.maxTemperature)
+            val request = YandexCompletionRequest(
+                modelUri = modelUri,
+                completionOptions = CompletionOptions(
+                    stream = false,
+                    temperature = clampedTemperature,
+                    maxTokens = maxTokens.coerceIn(1, 32000)
+                ),
+                messages = listOf(
+                    Message(role = "system", text = formattedSystemPrompt),
+                    Message(role = "user", text = prompt)
+                )
+            )
+            Timber.d("YandexGPT: Request - ModelUri: ${request.modelUri}, Temperature: ${request.completionOptions.temperature}, Messages count: ${request.messages.size}")
+            
+            // Track response time
+            val startTime = System.currentTimeMillis()
+            val response = api.completion(request)
+            val endTime = System.currentTimeMillis()
+            val responseTimeMs = endTime - startTime
+            
+            val raw = response.result?.alternatives?.firstOrNull()?.message?.text ?: ""
+            Timber.d("YandexGPT: Response received - Raw length: ${raw.length}, Has alternatives: ${response.result?.alternatives != null}, Response time: ${responseTimeMs}ms")
+            
+            // Extract usage statistics from response
+            val usage = response.result?.usage
+            val inputTextTokens = usage?.inputTextTokens?.toIntOrNull() 
+                ?: usage?.input_tokens?.toIntOrNull() 
+                ?: requestTokens
+            val completionTokens = usage?.completionTokens?.toIntOrNull() 
+                ?: usage?.completion_tokens?.toIntOrNull() 
+                ?: 0
+            
+            // If completion tokens are not in usage, try to count them from response text
+            val responseTokens = if (completionTokens == 0 && raw.isNotEmpty()) {
+                try {
+                    val responseTokenizeRequest = YandexTokenizeRequest(
+                        modelUri = modelUri,
+                        text = raw
+                    )
+                    val responseTokenizeResponse = api.tokenize(responseTokenizeRequest)
+                    responseTokenizeResponse.tokens?.size ?: 0
+                } catch (e: Exception) {
+                    Timber.w(e, "YandexGPT: Failed to tokenize response text")
+                    0
+                }
+            } else {
+                completionTokens
+            }
+            
+            // Calculate cost: $0.006668 per 1,000 tokens
+            val totalTokens = inputTextTokens + responseTokens
+            val costUsd = (totalTokens / 1000.0) * 0.006668
+            
+            Timber.d("YandexGPT: Tokens - Input: $inputTextTokens, Output: $responseTokens, Total: $totalTokens, Cost: $$costUsd")
+            
+            val cleaned = stripCodeFences(raw)
+            Timber.d("YandexGPT: Response cleaned - Final length: ${cleaned.length}")
+            
+            val tokenInfo = TokenInfo(
+                requestTokens = inputTextTokens,
+                responseTokens = responseTokens,
+                responseTimeMs = responseTimeMs,
+                costUsd = costUsd
+            )
+            
+            Result.success(YandexResponse(cleaned, tokenInfo))
         } catch (t: Throwable) {
             if (t is HttpException) {
                 val raw = t.response()?.errorBody()?.string()

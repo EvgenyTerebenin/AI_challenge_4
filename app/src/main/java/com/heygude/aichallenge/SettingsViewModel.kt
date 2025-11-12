@@ -49,6 +49,13 @@ class SettingsViewModel(
             initialValue = GptModel.YANDEX_LATEST
         )
 
+    val maxTokens: StateFlow<Int> = settingsManager.maxTokens
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = 2000
+        )
+
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
@@ -124,6 +131,17 @@ class SettingsViewModel(
                 _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.model_updated_successfully))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_update_model, e.message ?: ""))
+            }
+        }
+    }
+    
+    fun setMaxTokens(maxTokens: Int) {
+        viewModelScope.launch {
+            try {
+                settingsManager.setMaxTokens(maxTokens)
+                _uiState.value = UiState.Success(getApplication<Application>().getString(R.string.max_tokens_updated_successfully))
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(getApplication<Application>().getString(R.string.failed_to_update_max_tokens, e.message ?: ""))
             }
         }
     }
