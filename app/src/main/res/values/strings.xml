@@ -12,6 +12,7 @@
     <string name="settings">Настройки</string>
     <string name="error_format">Ошибка: %1$s</string>
     <string name="unknown_error">Неизвестная ошибка</string>
+    <string name="summarizing_messages">Резюмирую последние 10 сообщений</string>
     
     <!-- Settings Screen -->
     <string name="settings_title">Настройки</string>

@@ -232,31 +232,51 @@ class AIAgentViewModel(
             val sortedNonSummary = nonSummaryMessages.sortedBy { it.timestampMs }
             val messagesToCompress = sortedNonSummary.take(10)
             
+            // Add notification message before generating summary
+            val notificationId = System.currentTimeMillis()
+            val notificationMessage = ChatMessage(
+                id = notificationId,
+                text = getApplication<Application>().getString(R.string.summarizing_messages),
+                isUser = false,
+                timestampMs = System.currentTimeMillis(),
+                model = selectedModel.value,
+                isSummary = false
+            )
+            
+            // Add notification to messages
+            _messages.value = _messages.value + notificationMessage
+            saveHistory()
+            
             // Generate summary
             val summary = generateSummary(messagesToCompress)
             
             if (summary != null) {
-                // Create summary message
+                // Create summary message (use current timestamp so it appears after notification)
+                val summaryTimestamp = System.currentTimeMillis()
                 val summaryMessage = ChatMessage(
-                    id = System.currentTimeMillis(),
+                    id = summaryTimestamp,
                     text = summary,
                     isUser = false,
-                    timestampMs = messagesToCompress.first().timestampMs, // Use timestamp of first compressed message
+                    timestampMs = summaryTimestamp, // Use current timestamp to appear after notification
                     model = selectedModel.value,
                     isSummary = true
                 )
                 
-                // Replace compressed messages with summary
-                val messagesToKeep = messages.filter { msg -> 
+                // Remove compressed messages but keep notification
+                val messagesToKeep = _messages.value.filter { msg -> 
                     !messagesToCompress.any { it.id == msg.id }
                 }
                 
-                // Insert summary at the position of the first compressed message
+                // Add summary after notification (sorted by timestamp)
                 val sortedMessages = (messagesToKeep + summaryMessage).sortedBy { it.timestampMs }
                 _messages.value = sortedMessages
                 
                 saveHistory()
                 Timber.d("AIAgentViewModel: History compressed - replaced ${messagesToCompress.size} messages with 1 summary")
+            } else {
+                // If summary generation failed, remove notification
+                _messages.value = _messages.value.filter { it.id != notificationId }
+                saveHistory()
             }
         }
     }
