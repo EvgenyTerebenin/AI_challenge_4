@@ -124,6 +124,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             AIChallengeTheme {
                 val navController = rememberNavController()
+                val context = LocalContext.current
+                val activity = context as? ComponentActivity
+                val application = context.applicationContext as android.app.Application
+                // Create shared ViewModel at Activity level
+                val aiAgentViewModel: AIAgentViewModel = if (activity != null) {
+                    viewModel(
+                        viewModelStoreOwner = activity,
+                        factory = object : ViewModelProvider.Factory {
+                            @Suppress("UNCHECKED_CAST")
+                            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                                return AIAgentViewModel(application) as T
+                            }
+                        }
+                    )
+                } else {
+                    // Fallback if activity is not available
+                    viewModel(
+                        factory = object : ViewModelProvider.Factory {
+                            @Suppress("UNCHECKED_CAST")
+                            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                                return AIAgentViewModel(application) as T
+                            }
+                        }
+                    )
+                }
                 NavHost(
                     navController = navController,
                     startDestination = "main"
@@ -132,13 +157,15 @@ class MainActivity : ComponentActivity() {
                         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                             AIAgentScreen(
                                 modifier = Modifier.padding(innerPadding),
+                                vm = aiAgentViewModel,
                                 onSettingsClick = { navController.navigate("settings") }
                             )
                         }
                     }
                     composable("settings") {
                         SettingsScreen(
-                            onBackClick = { navController.popBackStack() }
+                            onBackClick = { navController.popBackStack() },
+                            onClearHistory = { aiAgentViewModel.clearHistory() }
                         )
                     }
                 }
@@ -213,7 +240,16 @@ fun AIAgentScreen(
                 ) {
                     // Title
                     Text(
-                        text = if (isUser) stringResource(R.string.user) else (message.model?.displayName ?: stringResource(R.string.ai)),
+                        text = if (isUser) {
+                            stringResource(R.string.user)
+                        } else {
+                            val modelName = message.model?.displayName ?: stringResource(R.string.ai)
+                            if (message.isSummary) {
+                                "📝 Резюме ($modelName)"
+                            } else {
+                                modelName
+                            }
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier
                             .fillMaxWidth(0.75f)

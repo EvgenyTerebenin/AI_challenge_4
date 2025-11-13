@@ -66,6 +66,7 @@ import com.heygude.aichallenge.R
 fun SettingsScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onClearHistory: () -> Unit = {},
     viewModel: SettingsViewModel = run {
         val application = LocalContext.current.applicationContext as android.app.Application
         viewModel(
@@ -316,6 +317,44 @@ fun SettingsScreen(
                         enabled = currentMaxTokens.toIntOrNull()?.let { it in 1..32000 } == true && currentMaxTokens.toIntOrNull() != maxTokens
                     ) {
                         Text(stringResource(R.string.save))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Clear history button
+            Text(
+                text = stringResource(R.string.clear_history),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Очистить всю историю переписки",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Button(
+                        onClick = onClearHistory,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(stringResource(R.string.clear_history))
                     }
                 }
             }

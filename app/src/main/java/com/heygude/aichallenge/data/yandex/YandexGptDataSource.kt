@@ -44,8 +44,8 @@ data class YandexResponse(
  * Later this will be implemented with Retrofit.
  */
 interface YandexGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6, maxTokens: Int = 2000): Result<String>
-    suspend fun generateResponseWithTokens(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6, maxTokens: Int = 2000): Result<YandexResponse>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6, maxTokens: Int = 2000, conversationHistory: List<com.heygude.aichallenge.AIAgentViewModel.ChatMessage> = emptyList()): Result<String>
+    suspend fun generateResponseWithTokens(prompt: String, systemPrompt: String, model: GptModel = GptModel.YANDEX_LATEST, temperature: Double = 0.6, maxTokens: Int = 2000, conversationHistory: List<com.heygude.aichallenge.AIAgentViewModel.ChatMessage> = emptyList()): Result<YandexResponse>
 }
 
 class DefaultYandexGptDataSource : YandexGptDataSource {
@@ -86,7 +86,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
             .create(YandexGptApi::class.java)
     }
 
-    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int, conversationHistory: List<com.heygude.aichallenge.AIAgentViewModel.ChatMessage>): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             Timber.w("YandexGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
@@ -129,6 +129,24 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
 ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
 ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
 
+            // Build message list with full conversation history
+            val messages = mutableListOf<Message>()
+            messages.add(Message(role = "system", text = formattedSystemPrompt))
+            
+            // Add all conversation history (sorted by timestamp to maintain order)
+            val sortedHistory = conversationHistory.sortedBy { it.timestampMs }
+            Timber.d("YandexGPT: Adding ${sortedHistory.size} messages from conversation history")
+            sortedHistory.forEach { msg ->
+                messages.add(Message(
+                    role = if (msg.isUser) "user" else "assistant",
+                    text = msg.text
+                ))
+            }
+            
+            // Add current user prompt as the last message
+            messages.add(Message(role = "user", text = prompt))
+            Timber.d("YandexGPT: Total messages in request: ${messages.size} (1 system + ${sortedHistory.size} history + 1 current)")
+            
             // Clamp temperature to model's valid range
             val clampedTemperature = temperature.coerceIn(model.provider.minTemperature, model.provider.maxTemperature)
             val request = YandexCompletionRequest(
@@ -138,10 +156,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
                     temperature = clampedTemperature,
                     maxTokens = maxTokens.coerceIn(1, 32000)
                 ),
-                messages = listOf(
-                    Message(role = "system", text = formattedSystemPrompt),
-                    Message(role = "user", text = prompt)
-                )
+                messages = messages
             )
             Timber.d("YandexGPT: Request - ModelUri: ${request.modelUri}, Temperature: ${request.completionOptions.temperature}, Messages count: ${request.messages.size}")
             val response = api.completion(request)
@@ -166,7 +181,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
         }
     }
 
-    override suspend fun generateResponseWithTokens(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int): Result<YandexResponse> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponseWithTokens(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int, conversationHistory: List<com.heygude.aichallenge.AIAgentViewModel.ChatMessage>): Result<YandexResponse> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             Timber.w("YandexGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
@@ -211,8 +226,26 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
 ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
 ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
 
+            // Build message list with full conversation history
+            val messages = mutableListOf<Message>()
+            messages.add(Message(role = "system", text = formattedSystemPrompt))
+            
+            // Add all conversation history (sorted by timestamp to maintain order)
+            val sortedHistory = conversationHistory.sortedBy { it.timestampMs }
+            Timber.d("YandexGPT: Adding ${sortedHistory.size} messages from conversation history")
+            sortedHistory.forEach { msg ->
+                messages.add(Message(
+                    role = if (msg.isUser) "user" else "assistant",
+                    text = msg.text
+                ))
+            }
+            
+            // Add current user prompt as the last message
+            messages.add(Message(role = "user", text = prompt))
+            Timber.d("YandexGPT: Total messages in request: ${messages.size} (1 system + ${sortedHistory.size} history + 1 current)")
+            
             // Count request tokens using tokenizer API
-            val requestText = formattedSystemPrompt + "\n\n" + prompt
+            val requestText = messages.joinToString("\n\n") { "${it.role}: ${it.text}" }
             val tokenizeRequest = YandexTokenizeRequest(
                 modelUri = modelUri,
                 text = requestText
@@ -230,10 +263,7 @@ class DefaultYandexGptDataSource : YandexGptDataSource {
                     temperature = clampedTemperature,
                     maxTokens = maxTokens.coerceIn(1, 32000)
                 ),
-                messages = listOf(
-                    Message(role = "system", text = formattedSystemPrompt),
-                    Message(role = "user", text = prompt)
-                )
+                messages = messages
             )
             Timber.d("YandexGPT: Request - ModelUri: ${request.modelUri}, Temperature: ${request.completionOptions.temperature}, Messages count: ${request.messages.size}")
             

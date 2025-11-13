@@ -23,7 +23,7 @@ import timber.log.Timber
  * Data source responsible for invoking DeepSeek GPT API.
  */
 interface DeepSeekGptDataSource {
-    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double = 0.6, maxTokens: Int = 2000): Result<String>
+    suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double = 0.6, maxTokens: Int = 2000, conversationHistory: List<com.heygude.aichallenge.AIAgentViewModel.ChatMessage> = emptyList()): Result<String>
 }
 
 class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
@@ -54,7 +54,7 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
             .create(DeepSeekGptApi::class.java)
     }
 
-    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun generateResponse(prompt: String, systemPrompt: String, model: GptModel, temperature: Double, maxTokens: Int, conversationHistory: List<com.heygude.aichallenge.AIAgentViewModel.ChatMessage>): Result<String> = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) {
             Timber.w("DeepSeekGPT: Prompt is blank")
             return@withContext Result.failure(IllegalArgumentException("Prompt must not be blank"))
@@ -97,14 +97,29 @@ class DefaultDeepSeekGptDataSource : DeepSeekGptDataSource {
 ОБЯЗАТЕЛЬНО используй timestamp: \"$timestamp\" в поле metadata.timestamp
 ОБЯЗАТЕЛЬНО не используй тройные обратные кавычки ``` в начале и конце ответа, не используй блоки кода и не добавляй любые символы форматирования."""
 
+            // Build message list with full conversation history
+            val messages = mutableListOf<DeepSeekMessage>()
+            messages.add(DeepSeekMessage(role = "system", content = formattedSystemPrompt))
+            
+            // Add all conversation history (sorted by timestamp to maintain order)
+            val sortedHistory = conversationHistory.sortedBy { it.timestampMs }
+            Timber.d("DeepSeekGPT: Adding ${sortedHistory.size} messages from conversation history")
+            sortedHistory.forEach { msg ->
+                messages.add(DeepSeekMessage(
+                    role = if (msg.isUser) "user" else "assistant",
+                    content = msg.text
+                ))
+            }
+            
+            // Add current user prompt as the last message
+            messages.add(DeepSeekMessage(role = "user", content = prompt))
+            Timber.d("DeepSeekGPT: Total messages in request: ${messages.size} (1 system + ${sortedHistory.size} history + 1 current)")
+            
             // Clamp temperature to model's valid range
             val clampedTemperature = temperature.coerceIn(model.provider.minTemperature, model.provider.maxTemperature)
             val request = DeepSeekChatRequest(
                 model = model.modelPath, // e.g., "deepseek-chat" or "deepseek-reasoner"
-                messages = listOf(
-                    DeepSeekMessage(role = "system", content = formattedSystemPrompt),
-                    DeepSeekMessage(role = "user", content = prompt)
-                ),
+                messages = messages,
                 temperature = clampedTemperature,
                 max_tokens = maxTokens.coerceIn(1, 32000),
                 stream = false

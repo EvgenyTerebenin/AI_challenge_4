@@ -18,6 +18,7 @@
     <string name="back">Назад</string>
     <string name="gpt_model">GPT Модель</string>
     <string name="model">Модель:</string>
+    <string name="clear_history">Очистить историю</string>
     <string name="temperature">Температура</string>
     <string name="temperature_value">Температура: %1$.2f</string>
     <string name="temperature_description">Управляет случайностью. Низкие значения делают ответы более сфокусированными и детерминированными, высокие значения делают их более креативными. Диапазон: %1$.1f - %2$.1f (%3$s)</string>
